@@ -58,7 +58,7 @@
 #include "fsl_adc16_driver.h"
 #include "fsl_adc_irq.c"
 #include "lptmr_trigger.c"
-
+#include <math.h>
 #include "gpio_pins.h"
 #include "SEGGER_RTT.h"
 #include "warp.h"
@@ -202,7 +202,7 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 }
 
 int
-printADCValue(adc16_chn_config_t adcChnConfig)
+getADCValue(adc16_chn_config_t adcChnConfig)
 {
     ADC16_DRV_ConfigConvChn(ADC_0, CHANNEL_0, &adcChnConfig);
 
@@ -214,7 +214,7 @@ printADCValue(adc16_chn_config_t adcChnConfig)
     //bandgapValue = ADC16_DRV_ConvRAWData(bandgapValue, false, adcUserConfig.resolutionMode);
    
     // ADC stop conversion
-    ADC16_DRV_PauseConv(ADC_0, CHANNEL_0);
+    //ADC16_DRV_PauseConv(ADC_0, CHANNEL_0);
 	return value;
 }
 
@@ -328,7 +328,7 @@ lowPowerPinStates(void)
 		PORT_HAL_SetMuxMode(PORTB_BASE, 1, kPortPinDisabled);
 	}
 
-	PORT_HAL_SetMuxMode(PORTB_BASE, 2, kPortMuxAsGpio);
+	PORT_HAL_SetMuxMode(PORTB_BASE, 2, kPortMuxAlt3);
 
 	/*
 	 *	PTB3 and PTB3 (I2C pins) are true open-drain
@@ -470,6 +470,54 @@ void setWiperPot(uint8_t tap, uint32_t pin)
 	OSA_TimeDelay(10);
 	disableSPIpins();
 }
+
+float findMean(int samples[], int size)
+{ 
+    float sum = 0;
+    for(int i = 0; i < size; i++)
+    {
+        sum += samples[i];
+    }
+    sum = sum/size; 
+    return sum; 
+}
+
+uint8_t calculateOffsetPotSetting(float valueADC)
+{
+	float offset = 0.627*valueADC - 477.834;
+	return (uint8_t) offset;
+}
+
+uint8_t calculateGainPotSetting(float valueADC)
+{
+	float offset = 1.865*valueADC - 1942.881;
+	return (uint8_t) offset;
+}
+
+void boxMueller(float mu, float sigma, float U1, float U2, float *z0, float *z1)
+{  
+  float R2 = -2*logf(U1); 
+  float R = sqrtf(R2);
+  
+  float theta = 2*M_PI*U2;  
+  *z0 = R*cosf(theta)*sigma + mu;
+  *z1 = R*sinf(theta)*sigma + mu; 
+}
+
+uint32_t linearCongruential(uint32_t previous)
+{
+	return (1664525*previous + 1013904223) % 4294967296;
+}
+
+float transformGaussian(float currentMean, float currentStd, float targetMean, float targetStd, float sample)
+{
+	sample = sample - currentMean;
+	sample = sample / currentStd;
+	sample = sample * targetStd;
+	sample = sample + targetMean;
+	return sample;
+}
+	
 
 void
 enableSPIpins(void)
@@ -710,7 +758,7 @@ main(void)
 	/*
 	 *	Switch CPU to Very Low Power Run (VLPR) mode
 	 */
-	warpSetLowPowerMode(kWarpPowerModeVLPR, 0);
+	warpSetLowPowerMode(kWarpPowerModeRUN, 0 /* sleep seconds : irrelevant here */);
 
 
 
@@ -769,8 +817,10 @@ main(void)
     adcUserConfig.resolutionMode = kAdcResolutionBitOf12or13;
     adcUserConfig.continuousConvEnable = false;
     adcUserConfig.clkSrcMode = kAdcClkSrcOfAsynClk;
+	ADC16_DRV_DisableHwAverage(ADC_0);
+	ADC16_DRV_DisableLongSample(ADC_0);
     ADC16_DRV_Init(ADC_0, &adcUserConfig);
-
+	
 
 
     adcChnConfigNoise.chnNum =kAdcChannelPTA8;
@@ -782,36 +832,95 @@ main(void)
     adcChnConfigTemperature.diffEnable = false;
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
+	int samples[10];
+	uint8_t previousOffset = 0x00;
+	uint8_t previousGain = 0x00;
+	uint8_t offset = 0x80;
+	uint8_t gain = 0x80;
 	
-	// Set offset
-	//setWiperPot(0x6B, kWarpPinISL23415_nCS);
-
-	
-  	//uint8_t wiper = 0x00;
-	//for(int i = 0 ; i < 256 ; i++)
+    //for(int i = 0 ; i < 56 ; i++)
 	//{
-	//printADCValue(adcChnConfigTemperature);
-		//SEGGER_RTT_printf(0, "];\n\nOffsetWiper%u = [\n\n", wiper);
-		// Set gain
-		//setWiperPot(wiper, kWarpPinPAN1326_nSHUTD);
-		
-		
-		//OSA_TimeDelay(5000);
-		//wiper++;
+	/*
+		for(int j = 0 ; j < 10 ; j++)
+		{
+			samples[j] = getADCValue(adcChnConfigTemperature);
+		}
+		offset = calculateOffsetPotSetting(findMean(samples, 10));
+		gain = calculateGainPotSetting(findMean(samples, 10));
+		if(offset != previousOffset)
+		{
+			//SEGGER_RTT_printf(0, "\nSetting offset\n");
+			// Set offset
+			setWiperPot(offset, kWarpPinISL23415_nCS);
+			previousOffset = offset;
+		}
+		if(gain != previousGain)
+		{
+			//SEGGER_RTT_printf(0, "\nSetting gain\n");
+			// Set gain
+			setWiperPot(gain, kWarpPinPAN1326_nSHUTD);
+			previousGain = gain; 
+		}
+	*/
+		OSA_TimeDelay(5000);
 		for(int j = 0 ; j < 10000 ; j++)
 		{
-	 	SEGGER_RTT_printf(0, "\n%u", printADCValue(adcChnConfigTemperature));
-		//SEGGER_RTT_printf(0, "\n%u", 4095-printADCValue(adcChnConfigNoise));
+			//SEGGER_RTT_printf(0, "\n%u", 4095 - getADCValue(adcChnConfigNoise));
+			SEGGER_RTT_printf(0, "\n%u", getADCValue(adcChnConfigNoise));
 		}
 	//}
+		
 	
-	// Put equation that takes temp as input and calculates required gain and offset for each temperature here. 
-	// Set pots for required gain and offset here.
+	/*
+	// Set offset
+	setWiperPot(0x7E, kWarpPinISL23415_nCS);
+	OSA_TimeDelay(5000);
+	//for(uint8_t j = 0 ; j < 256 ; j++)
+	//{
+		
+		// Set gain
+		setWiperPot(0x80, kWarpPinPAN1326_nSHUTD);
 	
-	
-
-   
+		SEGGER_RTT_printf(0, "\nGainWiper%u", 0x80);
+		OSA_TimeDelay(5000);
+		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+		for(int i = 0 ; i < 10000000 ; i++)
+		{
+		    getADCValue(adcChnConfigNoise);
+			
+		}
+		SEGGER_RTT_printf(0, "%d\n", RTC->TSR);
 	//}
-
+	OSA_TimeDelay(1000000000);
+	*/
+	
+	/*
+	SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	for(int i = 0 ; i < 10000000 ; i++)
+	{
+		transformGaussian(2047.5, 341.25, 0, 1, getADCValue(adcChnConfigNoise))*1000;
+	}
+	SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	*/
+	
+	/*
+	uint32_t U1 = 0;
+	uint32_t U2 = 0;
+	uint32_t tempU = 0;
+	float step = 0;
+	float z0 = 0;
+	float z1; 
+	SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	for(int i = 0 ; i < 5000000 ; i++)
+	{
+		tempU = linearCongruential(tempU);
+		U1 = tempU;
+		tempU = linearCongruential(tempU);
+		U2 = tempU;
+		boxMueller(step, 1, U1/4294967295.0, U2/4294967295.0, &z0, &z1);
+		step = z0;	
+	}
+	SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	*/
 	return 0;
 }

@@ -33,6 +33,7 @@
 #include "fsl_adc16_hal.h"
 #include "fsl_clock_manager.h"
 #include "fsl_interrupt_manager.h"
+#include "fsl_pmc_hal.h"
 
 /* Define MACRO for formatting the ADC16 result value. */
 #define ADC16_CONV_SIGN32_MASK    (0xFFFF0000U)
@@ -178,17 +179,17 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
 
     userConfigPtr->intEnable = false;
     userConfigPtr->lowPowerEnable = false;
-    userConfigPtr->clkDividerMode = kAdcClkDividerInputOf8;
+    userConfigPtr->clkDividerMode = kAdcClkDividerInputOf1;
     userConfigPtr->resolutionMode = kAdcResolutionBitOf12or13;
     userConfigPtr->clkSrcMode = kAdcClkSrcOfBusClk;
     userConfigPtr->asyncClkEnable = false;
-    userConfigPtr->highSpeedEnable = false;
+    userConfigPtr->highSpeedEnable = true;
     userConfigPtr->hwTriggerEnable = false;
 #if FSL_FEATURE_ADC16_HAS_DMA
     userConfigPtr->dmaEnable = false;
 #endif /* FSL_FEATURE_ADC16_HAS_DMA */
-    userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfVref;
-    userConfigPtr->continuousConvEnable = false;
+    userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfValt;
+    userConfigPtr->continuousConvEnable = true;
 
     return kStatus_ADC16_Success;
 }
@@ -244,6 +245,8 @@ adc16_status_t ADC16_DRV_Init(uint32_t instance, adc16_user_config_t *userConfig
     /* DMA. */
     ADC16_HAL_SetDmaCmd(baseAddr, userConfigPtr->dmaEnable);
 #endif /* FSL_FEATURE_ADC16_HAS_DMA */
+	PMC_HAL_SetBandgapInLowPowerModeCmd(baseAddr, 1);
+	PMC_HAL_SetBandgapBufferCmd(baseAddr, 1);
 
     /* Voltage reference selection. */
     ADC16_HAL_SetRefVoltSrcMode(baseAddr, userConfigPtr->refVoltSrcMode);

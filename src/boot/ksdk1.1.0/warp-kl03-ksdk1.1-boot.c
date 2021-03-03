@@ -863,11 +863,13 @@ main(void)
 		}
 	*/
 		OSA_TimeDelay(5000);
-		for(int j = 0 ; j < 10000 ; j++)
+		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+		for(int j = 0 ; j < 1000000 ; j++)
 		{
 			//SEGGER_RTT_printf(0, "\n%u", 4095 - getADCValue(adcChnConfigNoise));
-			SEGGER_RTT_printf(0, "\n%u", getADCValue(adcChnConfigNoise));
+			getADCValue(adcChnConfigNoise);
 		}
+		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}
 		
 	

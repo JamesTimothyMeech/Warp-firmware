@@ -94,6 +94,8 @@ ADD_EXECUTABLE(Warp
 	"${ProjDirPath}/../../src/pin_mux.h"
 	"${ProjDirPath}/../../src/lptmr_trigger.c"
 	"${ProjDirPath}/../../src/fsl_adc_irq.c"
+	#"${ProjDirPath}/../../src/fsl_vref.c"
+	#"${ProjDirPath}/../../src/fsl_vref.h"
     "${ProjDirPath}/../../src/SEGGER_RTT.c"
     "${ProjDirPath}/../../src/SEGGER_RTT_printf.c"
     "${ProjDirPath}/../../../../platform/drivers/src/i2c/fsl_i2c_irq.c"

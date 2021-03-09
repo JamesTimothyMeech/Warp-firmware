@@ -201,17 +201,9 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 	return result;
 }
 
-int
-getADCValue(uint32_t baseAddr)
-{
-    HW_ADC_SC1n_WR(baseAddr, CHANNEL_0, \
-        (   (1 ? BM_ADC_SC1n_AIEN : 0U) \
-          | BF_ADC_SC1n_ADCH(kAdcChannelPTA8) \
-        ) );
-    while ( !BR_ADC_SC1n_COCO(baseAddr, CHANNEL_0) )
-    {}
-	return (uint16_t)(BR_ADC_Rn_D(baseAddr, CHANNEL_0));
-}
+
+	
+
 
 /*
  *	Override the RTC IRQ handler
@@ -827,6 +819,8 @@ main(void)
     adcChnConfigTemperature.diffEnable = false;
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
+                 
+	
 	int samples[10];
 	uint8_t previousOffset = 0x00;
 	uint8_t previousGain = 0x00;
@@ -857,14 +851,17 @@ main(void)
 			previousGain = gain; 
 		}
 	*/
+	uint16_t value = 0;
 		OSA_TimeDelay(5000);
-	    uint32_t instance = ADC_0;
-	    uint32_t baseAddr = g_adcBaseAddr[instance];
 		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 		for(int j = 0 ; j < 10000000 ; j++)
 		{
-			//SEGGER_RTT_printf(0, "\n%u", 4095 - getADCValue(adcChnConfigNoise));
-			getADCValue(baseAddr);
+			// Read noise
+			((*(__IO hw_adc_sc1n_t *)((1073983488U))).U = 67U);
+		    while ( !((*(volatile uint32_t*)(1401139200U)) ))
+		    {}
+			value = ((*(volatile uint32_t*)(1350283280U)));	
+			SEGGER_RTT_printf(0, "\n%d\n", value);	
 		}
 		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}

@@ -202,20 +202,15 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 }
 
 int
-getADCValue(adc16_chn_config_t adcChnConfig)
+getADCValue(uint32_t baseAddr)
 {
-    ADC16_DRV_ConfigConvChn(ADC_0, CHANNEL_0, &adcChnConfig);
-
-    // Wait for the conversion to be done
-    ADC16_DRV_WaitConvDone(ADC_0, CHANNEL_0);
-
-    // Get current ADC BANDGAP value
-    int value = ADC16_DRV_GetConvValueRAW(ADC_0, CHANNEL_0);
-    //bandgapValue = ADC16_DRV_ConvRAWData(bandgapValue, false, adcUserConfig.resolutionMode);
-   
-    // ADC stop conversion
-    //ADC16_DRV_PauseConv(ADC_0, CHANNEL_0);
-	return value;
+    HW_ADC_SC1n_WR(baseAddr, CHANNEL_0, \
+        (   (1 ? BM_ADC_SC1n_AIEN : 0U) \
+          | BF_ADC_SC1n_ADCH(kAdcChannelPTA8) \
+        ) );
+    while ( !BR_ADC_SC1n_COCO(baseAddr, CHANNEL_0) )
+    {}
+	return (uint16_t)(BR_ADC_Rn_D(baseAddr, CHANNEL_0));
 }
 
 /*
@@ -816,7 +811,7 @@ main(void)
     ADC16_DRV_StructInitUserConfigDefault(&adcUserConfig);
     adcUserConfig.resolutionMode = kAdcResolutionBitOf12or13;
     adcUserConfig.continuousConvEnable = false;
-    adcUserConfig.clkSrcMode = kAdcClkSrcOfAsynClk;
+    adcUserConfig.clkSrcMode =  kAdcClkSrcOfBusClk;
 	ADC16_DRV_DisableHwAverage(ADC_0);
 	ADC16_DRV_DisableLongSample(ADC_0);
     ADC16_DRV_Init(ADC_0, &adcUserConfig);
@@ -863,11 +858,13 @@ main(void)
 		}
 	*/
 		OSA_TimeDelay(5000);
+	    uint32_t instance = ADC_0;
+	    uint32_t baseAddr = g_adcBaseAddr[instance];
 		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
-		for(int j = 0 ; j < 1000000 ; j++)
+		for(int j = 0 ; j < 10000000 ; j++)
 		{
 			//SEGGER_RTT_printf(0, "\n%u", 4095 - getADCValue(adcChnConfigNoise));
-			getADCValue(adcChnConfigNoise);
+			getADCValue(baseAddr);
 		}
 		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}

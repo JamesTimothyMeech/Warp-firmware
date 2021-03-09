@@ -181,7 +181,7 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
     userConfigPtr->lowPowerEnable = false;
     userConfigPtr->clkDividerMode = kAdcClkDividerInputOf1;
     userConfigPtr->resolutionMode = kAdcResolutionBitOf12or13;
-    userConfigPtr->clkSrcMode = kAdcClkSrcOfAltClk ;
+    userConfigPtr->clkSrcMode =  kAdcClkSrcOfBusClk;
     userConfigPtr->asyncClkEnable = false;
     userConfigPtr->highSpeedEnable = true;
     userConfigPtr->hwTriggerEnable = false;

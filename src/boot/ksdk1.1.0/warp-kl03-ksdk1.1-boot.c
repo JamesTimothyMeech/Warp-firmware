@@ -41,7 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include "fsl_vref.h"
 #include "fsl_misc_utilities.h"
 #include "fsl_device_registers.h"
 #include "fsl_i2c_master_driver.h"
@@ -82,7 +82,7 @@
 #define UPPER_VALUE_LIMIT       (1U)        /*! This value/10 is going to be added to current Temp to set the upper boundary*/
 #define LOWER_VALUE_LIMIT       (1U)        /*! This Value/10 is going to be subtracted from current Temp to set the lower boundary*/
 #define UPDATE_BOUNDARIES_TIME  (20U)       /*! This value indicates the number of cycles needed to update boundaries. To know the Time it will take, multiply this value times LPTMR_COMPARE_VALUE*/
-#define kAdcChannelTemperature  (26U)       /*! ADC channel of temperature sensor */
+#define kAdcChannelTemperature  (2U)       /*! ADC channel of temperature sensor */
 #define kAdcChannelPTA8		    (3U)       /*! ADC channel of PTA8 */
 #define kAdcChannelBandgap      (27U)       /*! ADC channel of BANDGAP */
 
@@ -202,7 +202,12 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 }
 
 
+
 	
+
+	
+
+
 
 
 /*
@@ -366,7 +371,7 @@ lowPowerPinStates(void)
 	GPIO_DRV_ClearPinOutput(kWarpPinTPS82740A_CTLEN);
 	GPIO_DRV_ClearPinOutput(kWarpPinTPS82740B_CTLEN);
 
-	GPIO_DRV_ClearPinOutput(kWarpPinTPS82740_VSEL2);
+	
 	GPIO_DRV_ClearPinOutput(kWarpPinTPS82740_VSEL3);
 
 #ifndef WARP_BUILD_ENABLE_THERMALCHAMBERANALYSIS
@@ -755,30 +760,13 @@ main(void)
 	 *
 	 *	See also Section 30.3.3 GPIO Initialization of KSDK13APIRM.pdf
 	 */
-	GPIO_DRV_Init(inputPins  /* input pins */, outputPins  /* output pins */);
+	//GPIO_DRV_Init(inputPins  /* input pins */, outputPins  /* output pins */);
 
 	/*
 	 *	Note that it is lowPowerPinStates() that sets the pin mux mode,
 	 *	so until we call it pins are in their default state.
 	 */
-	lowPowerPinStates();
-
-
-
-	/*
-	 *	Toggle LED3 (kWarpPinSI4705_nRST)
-	 */
-	GPIO_DRV_SetPinOutput(kWarpPinSI4705_nRST);
-	OSA_TimeDelay(200);
-	GPIO_DRV_ClearPinOutput(kWarpPinSI4705_nRST);
-	OSA_TimeDelay(200);
-	GPIO_DRV_SetPinOutput(kWarpPinSI4705_nRST);
-	OSA_TimeDelay(200);
-	GPIO_DRV_ClearPinOutput(kWarpPinSI4705_nRST);
-	OSA_TimeDelay(200);
-	GPIO_DRV_SetPinOutput(kWarpPinSI4705_nRST);
-	OSA_TimeDelay(200);
-	GPIO_DRV_ClearPinOutput(kWarpPinSI4705_nRST);
+	//lowPowerPinStates();
 	
 #if FSL_FEATURE_ADC16_HAS_CALIBRATION
     adc16_calibration_param_t adcCalibraitionParam;
@@ -819,7 +807,9 @@ main(void)
     adcChnConfigTemperature.diffEnable = false;
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
-                 
+    //GPIO_DRV_SetPinOutput(kWarpPinCLKOUT32K);
+	//GPIO_DRV_SetPinOutput(kWarpPinTPS82740_VSEL3);
+ 
 	
 	int samples[10];
 	uint8_t previousOffset = 0x00;
@@ -851,19 +841,34 @@ main(void)
 			previousGain = gain; 
 		}
 	*/
+	//vref_config_t vrefConfig;
+    //VREF_GetDefaultConfig(&vrefConfig);
+    /* Initialize the VREF mode. */
+    //VREF_Init(VREF, &vrefConfig);
+	//uint32_t trimVal = 0;
+	//VREF_SetTrimVal(VREF, trimVal);
+	
 	uint16_t value = 0;
 		OSA_TimeDelay(5000);
-		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+		//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 		for(int j = 0 ; j < 10000000 ; j++)
 		{
-			// Read noise
-			((*(__IO hw_adc_sc1n_t *)((1073983488U))).U = 67U);
-		    while ( !((*(volatile uint32_t*)(1401139200U)) ))
-		    {}
-			value = ((*(volatile uint32_t*)(1350283280U)));	
-			SEGGER_RTT_printf(0, "\n%d\n", value);	
+			 //Read noise
+			//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		   // while ( !((*(volatile uint32_t*)(0x5383B000))))
+		    //{}
+			//value = ((*(volatile uint32_t*)(0x507BB010)));	
+			//SEGGER_RTT_printf(0, "%d\n", value);	
+			// Read temperature
+			
+			//((*(__IO hw_adc_sc1n_t *)0x4003B000).U = (0x00)); 
+			//while ( !((*(volatile uint32_t*)0x5383B000)))
+			//{}
+			//value = ((*(volatile uint32_t*)0x507BB010));
+			//SEGGER_RTT_printf(0, "\n%d", value);
+		
 		}
-		SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+		//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}
 		
 	

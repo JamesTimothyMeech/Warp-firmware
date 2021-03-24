@@ -92,7 +92,7 @@ adc16_status_t ADC16_DRV_GetAutoCalibrationParam(uint32_t instance, adc16_calibr
     ADC16_HAL_SetClkDividerMode(baseAddr, kAdcClkDividerInputOf8);
 
     /* Reference voltage as Vadd. */
-    ADC16_HAL_SetRefVoltSrcMode(baseAddr, kAdcRefVoltSrcOfVref);
+    ADC16_HAL_SetRefVoltSrcMode(baseAddr, kAdcRefVoltSrcOfValt);
 
     /* Software trigger. */
     ADC16_HAL_SetHwTriggerCmd(baseAddr, false);

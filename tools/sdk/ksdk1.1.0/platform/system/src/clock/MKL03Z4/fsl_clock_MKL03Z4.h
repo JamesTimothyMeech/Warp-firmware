@@ -45,6 +45,8 @@
 /*! @brief TPM external clock source count. */
 #define TPM_EXT_CLK_COUNT  2
 
+
+
 /*! @brief TPM external clock frequency(TPM_CLK). */
 extern uint32_t g_tpmClkFreq[TPM_EXT_CLK_COUNT];
 

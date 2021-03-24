@@ -31,7 +31,89 @@
 #ifndef _FSL_VREF_H_
 #define _FSL_VREF_H_
 
-#include "fsl_common.h"
+#include <stdint.h>
+#include <assert.h>
+#include "/Users/james/Desktop/Warp-firmware/tools/sdk/ksdk1.1.0/platform/CMSIS/Include/device/MKL03Z4/MKL03Z4.h"
+
+/*! @brief Clock ip name array for VREF. */
+#define VREF_CLOCKS  \
+    {                \
+        kCLOCK_Vref0 \
+    }
+
+#define VREF_SC_VREFEN(x)                        (((uint8_t)(((uint8_t)(x)) << VREF_SC_VREFEN_SHIFT)) & VREF_SC_VREFEN_MASK)
+#define VREF_SC_REGEN(x)                         (((uint8_t)(((uint8_t)(x)) << VREF_SC_REGEN_SHIFT)) & VREF_SC_REGEN_MASK)
+#define CLK_GATE_BIT_SHIFT_SHIFT 0U
+#define CLK_GATE_REG_OFFSET_SHIFT 8U
+#define CLK_GATE_REG_OFFSET_MASK 0xFFFFFF00U
+#define CLK_GATE_BIT_SHIFT_MASK 0x000000FFU
+#define CLK_GATE_ABSTRACT_REG_OFFSET(x) (((x)&CLK_GATE_REG_OFFSET_MASK) >> CLK_GATE_REG_OFFSET_SHIFT)
+#define CLK_GATE_ABSTRACT_BITS_SHIFT(x) (((x)&CLK_GATE_BIT_SHIFT_MASK) >> CLK_GATE_BIT_SHIFT_SHIFT)
+/* @brief VREF availability on the SoC. */
+#define FSL_FEATURE_SOC_VREF_COUNT (1)	
+	
+#define CLK_GATE_DEFINE(reg_offset, bit_shift)                                  \
+    ((((reg_offset) << CLK_GATE_REG_OFFSET_SHIFT) & CLK_GATE_REG_OFFSET_MASK) | \
+     (((bit_shift) << CLK_GATE_BIT_SHIFT_SHIFT) & CLK_GATE_BIT_SHIFT_MASK))
+	
+	typedef enum _clock_ip_name
+	{
+	    kCLOCK_IpInvalid = 0U,
+	    kCLOCK_I2c2      = CLK_GATE_DEFINE(0x1028U, 6U),
+	    kCLOCK_Uart4     = CLK_GATE_DEFINE(0x1028U, 10U),
+	    kCLOCK_Uart5     = CLK_GATE_DEFINE(0x1028U, 11U),
+
+	    kCLOCK_Enet0 = CLK_GATE_DEFINE(0x102CU, 0U),
+	    kCLOCK_Dac0  = CLK_GATE_DEFINE(0x102CU, 12U),
+	    kCLOCK_Dac1  = CLK_GATE_DEFINE(0x102CU, 13U),
+
+	    kCLOCK_Spi2  = CLK_GATE_DEFINE(0x1030U, 12U),
+	    kCLOCK_Sdhc0 = CLK_GATE_DEFINE(0x1030U, 17U),
+	    kCLOCK_Ftm3  = CLK_GATE_DEFINE(0x1030U, 25U),
+	    kCLOCK_Adc1  = CLK_GATE_DEFINE(0x1030U, 27U),
+
+	    kCLOCK_Ewm0   = CLK_GATE_DEFINE(0x1034U, 1U),
+	    kCLOCK_Cmt0   = CLK_GATE_DEFINE(0x1034U, 2U),
+	    kCLOCK_I2c0   = CLK_GATE_DEFINE(0x1034U, 6U),
+	    kCLOCK_I2c1   = CLK_GATE_DEFINE(0x1034U, 7U),
+	    kCLOCK_Uart0  = CLK_GATE_DEFINE(0x1034U, 10U),
+	    kCLOCK_Uart1  = CLK_GATE_DEFINE(0x1034U, 11U),
+	    kCLOCK_Uart2  = CLK_GATE_DEFINE(0x1034U, 12U),
+	    kCLOCK_Uart3  = CLK_GATE_DEFINE(0x1034U, 13U),
+	    kCLOCK_Usbfs0 = CLK_GATE_DEFINE(0x1034U, 18U),
+	    kCLOCK_Cmp0   = CLK_GATE_DEFINE(0x1034U, 19U),
+	    kCLOCK_Cmp1   = CLK_GATE_DEFINE(0x1034U, 19U),
+	    kCLOCK_Cmp2   = CLK_GATE_DEFINE(0x1034U, 19U),
+	    kCLOCK_Vref0  = CLK_GATE_DEFINE(0x1034U, 20U),
+
+	    kCLOCK_Lptmr0 = CLK_GATE_DEFINE(0x1038U, 0U),
+	    kCLOCK_PortA  = CLK_GATE_DEFINE(0x1038U, 9U),
+	    kCLOCK_PortB  = CLK_GATE_DEFINE(0x1038U, 10U),
+	    kCLOCK_PortC  = CLK_GATE_DEFINE(0x1038U, 11U),
+	    kCLOCK_PortD  = CLK_GATE_DEFINE(0x1038U, 12U),
+	    kCLOCK_PortE  = CLK_GATE_DEFINE(0x1038U, 13U),
+
+	    kCLOCK_Ftf0     = CLK_GATE_DEFINE(0x103CU, 0U),
+	    kCLOCK_Dmamux0  = CLK_GATE_DEFINE(0x103CU, 1U),
+	    kCLOCK_Flexcan0 = CLK_GATE_DEFINE(0x103CU, 4U),
+	    kCLOCK_Rnga0    = CLK_GATE_DEFINE(0x103CU, 9U),
+	    kCLOCK_Spi0     = CLK_GATE_DEFINE(0x103CU, 12U),
+	    kCLOCK_Spi1     = CLK_GATE_DEFINE(0x103CU, 13U),
+	    kCLOCK_Sai0     = CLK_GATE_DEFINE(0x103CU, 15U),
+	    kCLOCK_Crc0     = CLK_GATE_DEFINE(0x103CU, 18U),
+	    kCLOCK_Usbdcd0  = CLK_GATE_DEFINE(0x103CU, 21U),
+	    kCLOCK_Pdb0     = CLK_GATE_DEFINE(0x103CU, 22U),
+	    kCLOCK_Pit0     = CLK_GATE_DEFINE(0x103CU, 23U),
+	    kCLOCK_Ftm0     = CLK_GATE_DEFINE(0x103CU, 24U),
+	    kCLOCK_Ftm1     = CLK_GATE_DEFINE(0x103CU, 25U),
+	    kCLOCK_Ftm2     = CLK_GATE_DEFINE(0x103CU, 26U),
+	    kCLOCK_Adc0     = CLK_GATE_DEFINE(0x103CU, 27U),
+	    kCLOCK_Rtc0     = CLK_GATE_DEFINE(0x103CU, 29U),
+
+	    kCLOCK_Flexbus0 = CLK_GATE_DEFINE(0x1040U, 0U),
+	    kCLOCK_Dma0     = CLK_GATE_DEFINE(0x1040U, 1U),
+	    kCLOCK_Sysmpu0  = CLK_GATE_DEFINE(0x1040U, 2U),
+	} clock_ip_name_t;
 
 /*!
  * @addtogroup vref
@@ -111,6 +193,23 @@ extern "C" {
  * @name VREF functional operation
  * @{
  */
+	
+static inline void CLOCK_EnableClock(clock_ip_name_t name)
+{
+	uint32_t regAddr = SIM_BASE + CLK_GATE_ABSTRACT_REG_OFFSET((uint32_t)name);
+	(*(volatile uint32_t *)regAddr) |= (1UL << CLK_GATE_ABSTRACT_BITS_SHIFT((uint32_t)name));
+}
+
+	/*!
+	 * @brief Disable the clock for specific IP.
+	 *
+	 * @param name  Which clock to disable, see \ref clock_ip_name_t.
+	 */
+static inline void CLOCK_DisableClock(clock_ip_name_t name)
+{
+	uint32_t regAddr = SIM_BASE + CLK_GATE_ABSTRACT_REG_OFFSET((uint32_t)name);
+	(*(volatile uint32_t *)regAddr) &= ~(1UL << CLK_GATE_ABSTRACT_BITS_SHIFT((uint32_t)name));
+}
 
 /*!
  * @brief Enables the clock gate and configures the VREF module according to the configuration structure.

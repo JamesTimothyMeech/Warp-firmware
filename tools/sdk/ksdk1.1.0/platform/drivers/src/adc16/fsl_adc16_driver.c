@@ -92,7 +92,7 @@ adc16_status_t ADC16_DRV_GetAutoCalibrationParam(uint32_t instance, adc16_calibr
     ADC16_HAL_SetClkDividerMode(baseAddr, kAdcClkDividerInputOf8);
 
     /* Reference voltage as Vadd. */
-    ADC16_HAL_SetRefVoltSrcMode(baseAddr, kAdcRefVoltSrcOfValt);
+    ADC16_HAL_SetRefVoltSrcMode(baseAddr, kAdcRefVoltSrcOfVref);
 
     /* Software trigger. */
     ADC16_HAL_SetHwTriggerCmd(baseAddr, false);
@@ -188,7 +188,7 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
 #if FSL_FEATURE_ADC16_HAS_DMA
     userConfigPtr->dmaEnable = false;
 #endif /* FSL_FEATURE_ADC16_HAS_DMA */
-    userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfValt;
+    userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfVref;
     userConfigPtr->continuousConvEnable = true;
 
     return kStatus_ADC16_Success;

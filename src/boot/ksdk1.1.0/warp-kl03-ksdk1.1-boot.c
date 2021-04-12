@@ -82,7 +82,7 @@
 #define UPPER_VALUE_LIMIT       (1U)        /*! This value/10 is going to be added to current Temp to set the upper boundary*/
 #define LOWER_VALUE_LIMIT       (1U)        /*! This Value/10 is going to be subtracted from current Temp to set the lower boundary*/
 #define UPDATE_BOUNDARIES_TIME  (20U)       /*! This value indicates the number of cycles needed to update boundaries. To know the Time it will take, multiply this value times LPTMR_COMPARE_VALUE*/
-#define kAdcChannelTemperature  (2U)       /*! ADC channel of temperature sensor */
+#define kAdcChannelPTA9		    (2U)       /*! ADC channel of temperature sensor */
 #define kAdcChannelPTA8		    (3U)       /*! ADC channel of PTA8 */
 #define kAdcChannelBandgap      (27U)       /*! ADC channel of BANDGAP */
 
@@ -205,7 +205,22 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 
 	
 
-	
+int
+printADCValue(adc16_chn_config_t adcChnConfig)
+{
+    ADC16_DRV_ConfigConvChn(ADC_0, CHANNEL_0, &adcChnConfig);
+
+    // Wait for the conversion to be done
+    ADC16_DRV_WaitConvDone(ADC_0, CHANNEL_0);
+
+    // Get current ADC BANDGAP value
+    int value = ADC16_DRV_GetConvValueRAW(ADC_0, CHANNEL_0);
+    //bandgapValue = ADC16_DRV_ConvRAWData(bandgapValue, false, adcUserConfig.resolutionMode);
+   
+    // ADC stop conversion
+    ADC16_DRV_PauseConv(ADC_0, CHANNEL_0);
+	return value;
+}
 
 
 
@@ -288,8 +303,8 @@ lowPowerPinStates(void)
 	PORT_HAL_SetMuxMode(PORTA_BASE, 5, kPortMuxAsGpio);
 	PORT_HAL_SetMuxMode(PORTA_BASE, 6, kPortMuxAsGpio);
 	PORT_HAL_SetMuxMode(PORTA_BASE, 7, kPortMuxAsGpio);
-	PORT_HAL_SetMuxMode(PORTA_BASE, 8, kPortMuxAsGpio);
-	PORT_HAL_SetMuxMode(PORTA_BASE, 9, kPortMuxAsGpio);
+	//PORT_HAL_SetMuxMode(PORTA_BASE, 8, kPortMuxAsGpio);
+	//PORT_HAL_SetMuxMode(PORTA_BASE, 9, kPortMuxAsGpio);
 
 	/*
 	 *	NOTE: The KL03 has no PTA10 or PTA11
@@ -760,13 +775,13 @@ main(void)
 	 *
 	 *	See also Section 30.3.3 GPIO Initialization of KSDK13APIRM.pdf
 	 */
-	//GPIO_DRV_Init(inputPins  /* input pins */, outputPins  /* output pins */);
+	GPIO_DRV_Init(inputPins  /* input pins */, outputPins  /* output pins */);
 
 	/*
 	 *	Note that it is lowPowerPinStates() that sets the pin mux mode,
 	 *	so until we call it pins are in their default state.
 	 */
-	//lowPowerPinStates();
+	lowPowerPinStates();
 	
 #if FSL_FEATURE_ADC16_HAS_CALIBRATION
     adc16_calibration_param_t adcCalibraitionParam;
@@ -803,12 +818,12 @@ main(void)
     adcChnConfigNoise.intEnable = false;
     adcChnConfigNoise.chnMux = kAdcChnMuxOfA;
 	
-    adcChnConfigTemperature.chnNum =kAdcChannelTemperature;
+    adcChnConfigTemperature.chnNum =kAdcChannelPTA9;
     adcChnConfigTemperature.diffEnable = false;
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
-    //GPIO_DRV_SetPinOutput(kWarpPinCLKOUT32K);
-	//GPIO_DRV_SetPinOutput(kWarpPinTPS82740_VSEL3);
+    GPIO_DRV_SetPinOutput(kWarpPinCLKOUT32K);
+	GPIO_DRV_SetPinOutput(kWarpPinTPS82740_VSEL3);
  
 	
 	int samples[10];
@@ -851,14 +866,26 @@ main(void)
 	uint16_t value = 0;
 		OSA_TimeDelay(5000);
 		//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+		GPIO_DRV_ClearPinOutput(kWarpPinTPS82740B_CTLEN);
+		OSA_TimeDelay(1000);
+		GPIO_DRV_SetPinOutput(kWarpPinTPS82740B_CTLEN);
+		OSA_TimeDelay(1000);
+		GPIO_DRV_ClearPinOutput(kWarpPinTPS82740B_CTLEN);
+		OSA_TimeDelay(1000);
+		GPIO_DRV_SetPinOutput(kWarpPinTPS82740B_CTLEN);
+		OSA_TimeDelay(1000);
+		GPIO_DRV_ClearPinOutput(kWarpPinTPS82740B_CTLEN);
+		
+	
 		for(int j = 0 ; j < 10000000 ; j++)
 		{
+		
 			 //Read noise
-			//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-		   // while ( !((*(volatile uint32_t*)(0x5383B000))))
-		    //{}
-			//value = ((*(volatile uint32_t*)(0x507BB010)));	
-			//SEGGER_RTT_printf(0, "%d\n", value);	
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			value = ((*(volatile uint32_t*)(0x507BB010)));	
+			SEGGER_RTT_printf(0, "%d\n", value);	
 			// Read temperature
 			
 			//((*(__IO hw_adc_sc1n_t *)0x4003B000).U = (0x00)); 
@@ -866,6 +893,10 @@ main(void)
 			//{}
 			//value = ((*(volatile uint32_t*)0x507BB010));
 			//SEGGER_RTT_printf(0, "\n%d", value);
+			SEGGER_RTT_printf(0, "%u\n", printADCValue(adcChnConfigTemperature));
+			//SEGGER_RTT_printf(0, "\n%u", printADCValue(adcChnConfigNoise));
+	
+			
 		
 		}
 		//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);

@@ -83,13 +83,13 @@ adc16_status_t ADC16_DRV_GetAutoCalibrationParam(uint32_t instance, adc16_calibr
 
     /* Maximum Average. */
 #if FSL_FEATURE_ADC16_HAS_HW_AVERAGE
-    ADC16_HAL_SetHwAverageCmd(baseAddr, true);
-    ADC16_HAL_SetHwAverageMode(baseAddr, kAdcHwAverageCountOf32);
+    ADC16_HAL_SetHwAverageCmd(baseAddr, false);
+
 #endif /* FSL_FEATURE_ADC16_HAS_HW_AVERAGE */
 
     /* Lowest ADC Frequency. */
     ADC16_HAL_SetClkSrcMode(baseAddr, kAdcClkSrcOfBusClk);
-    ADC16_HAL_SetClkDividerMode(baseAddr, kAdcClkDividerInputOf8);
+    ADC16_HAL_SetClkDividerMode(baseAddr, kAdcClkDividerInputOf1);
 
     /* Reference voltage as Vadd. */
     ADC16_HAL_SetRefVoltSrcMode(baseAddr, kAdcRefVoltSrcOfVref);
@@ -188,7 +188,7 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
 #if FSL_FEATURE_ADC16_HAS_DMA
     userConfigPtr->dmaEnable = false;
 #endif /* FSL_FEATURE_ADC16_HAS_DMA */
-    userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfVref;
+    userConfigPtr->refVoltSrcMode =  kAdcRefVoltSrcOfVref;
     userConfigPtr->continuousConvEnable = true;
 
     return kStatus_ADC16_Success;

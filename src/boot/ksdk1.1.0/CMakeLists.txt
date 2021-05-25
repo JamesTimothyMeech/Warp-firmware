@@ -96,6 +96,8 @@ ADD_EXECUTABLE(Warp
 	"${ProjDirPath}/../../src/fsl_adc_irq.c"
 	"${ProjDirPath}/../../src/fsl_vref.c"
 	"${ProjDirPath}/../../src/fsl_vref.h"
+	"${ProjDirPath}/../../src/devBME680.c"
+	"${ProjDirPath}/../../src/devBME680.h"
     "${ProjDirPath}/../../src/SEGGER_RTT.c"
     "${ProjDirPath}/../../src/SEGGER_RTT_printf.c"
     "${ProjDirPath}/../../../../platform/drivers/src/i2c/fsl_i2c_irq.c"

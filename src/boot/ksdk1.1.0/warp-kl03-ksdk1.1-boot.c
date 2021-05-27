@@ -849,17 +849,10 @@ main(void)
     adcChnConfigTemperature.diffEnable = false;
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
-    GPIO_DRV_SetPinOutput(kWarpPinCLKOUT32K);
-	GPIO_DRV_SetPinOutput(kWarpPinTPS82740_VSEL3);
+    //GPIO_DRV_SetPinOutput(kWarpPinCLKOUT32K);
+	//GPIO_DRV_SetPinOutput(kWarpPinTPS82740_VSEL3);
  
-	
-	int samples[10];
-	uint8_t previousOffset = 0x00;
-	uint8_t previousGain = 0x00;
-	uint8_t offset = 0xFF;
-	uint8_t gain = 0xFF;
-	setWiperPot(offset, kWarpPinISL23415_nCS);
-	setWiperPot(gain, kWarpPinPAN1326_nSHUTD);
+
 	
     //for(int i = 0 ; i < 56 ; i++)
 	//{
@@ -898,36 +891,36 @@ main(void)
 	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	
 	
-	uint16_t	readSensorRegisterValueLSB;
-	uint16_t	readSensorRegisterValueMSB;
-	uint16_t	readSensorRegisterValueXLSB;
+	//uint16_t	readSensorRegisterValueLSB;
+	//uint16_t	readSensorRegisterValueMSB;
+	//uint16_t	readSensorRegisterValueXLSB;
 
 	//float temperature = 0;
 	//float pressure = 0;
-	initBME680(	0x76	/* i2cAddress */,	&deviceBME680State	);
+	//initBME680(	0x76	/* i2cAddress */,	&deviceBME680State	);
 	
-	enableI2Cpins();
-	gWarpI2cBaudRateKbps = 1000;
+	//enableI2Cpins();
+	//gWarpI2cBaudRateKbps = 1000;
 	
 
 	
-	configureSensorBME680(0b00000001,	/*	Humidity oversampling (OSRS) to 1x				*/
-								0b00100100,	/*	Temperature oversample 1x, pressure overdsample 1x, mode 00	*/
-								0b00001000,	/*	Turn off heater							*/
-								0b00000000);
+	//configureSensorBME680(0b00000001,	/*	Humidity oversampling (OSRS) to 1x				*/
+	//							0b00100100,	/*	Temperature oversample 1x, pressure overdsample 1x, mode 00	*/
+	//							0b00001000,	/*	Turn off heater							*/
+	//							0b00000000);
 								
-	uint32_t uniform1 = 9948;
-	uint32_t uniform2 = 14837564;
+	//uint32_t uniform1 = 9948;
+	//uint32_t uniform2 = 14837564;
 	
-	uint16_t par_t1 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[34], deviceBME680CalibrationValues[33]));
-	uint16_t par_t2 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[2], deviceBME680CalibrationValues[1]));
-	uint8_t  par_t3 = (uint8_t)  deviceBME680CalibrationValues[3];
+	//uint16_t par_t1 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[34], deviceBME680CalibrationValues[33]));
+	//uint16_t par_t2 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[2], deviceBME680CalibrationValues[1]));
+	//uint8_t  par_t3 = (uint8_t)  deviceBME680CalibrationValues[3];
 	//SEGGER_RTT_printf(0, "par_t3 = %u\n", par_t3);
-	uint32_t temperature = 0;
-	uint32_t pressure = 0;
-	uint32_t humidity = 0; 
-	uint32_t value = 0; 
-	float temperaturef = 0;
+	//uint32_t temperature = 0;
+	//uint32_t pressure = 0;
+	//uint32_t humidity = 0; 
+	//uint32_t value = 0; 
+	//float temperaturef = 0;
 	
 	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//for(int j = 0 ; j < 10000 ; j++)
@@ -1016,25 +1009,25 @@ main(void)
 	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	
 		
-	setWiperPot(0x80, kWarpPinISL23415_nCS);
-	setWiperPot(0x80, kWarpPinPAN1326_nSHUTD);
-	for(int j = 0 ; j < 10000000 ; j++)
-	{
+	//setWiperPot(0x80, kWarpPinISL23415_nCS);
+	//setWiperPot(0x80, kWarpPinPAN1326_nSHUTD);
+	//for(int j = 0 ; j < 10000000 ; j++)
+	//{
 			//OSA_TimeDelay(1);
 			//Read noise
-		((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-		while ( !((*(volatile uint32_t*)(0x5383B000))))
-		{}
-		uniform1 = linearCongruential(uniform1);
-		value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-		SEGGER_RTT_printf(0, "%u\n", value);	
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//uniform1 = linearCongruential(uniform1);
+		//value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+		//SEGGER_RTT_printf(0, "%u\n", value);	
 			
-		((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-		while ( !((*(volatile uint32_t*)(0x5383B000))))
-		{}
-		uniform1 = linearCongruential(uniform1);
-		value = 4294967295 - (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-		SEGGER_RTT_printf(0, "%u\n", value);
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//uniform1 = linearCongruential(uniform1);
+		//value = 4294967295 - (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+		//SEGGER_RTT_printf(0, "%u\n", value);
 			// Read temperature
 			
 			//((*(__IO hw_adc_sc1n_t *)0x4003B000).U = (0x00)); 
@@ -1050,29 +1043,37 @@ main(void)
 	
 			
 		
-	}
+	//}
 		//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}
 		
-	
+	GPIO_DRV_SetPinOutput(kWarpPinPAN1326_nSHUTD);
+	GPIO_DRV_SetPinOutput(kWarpPinISL23415_nCS);
+	OSA_TimeDelay(5000);
 	// Set gain
-	//setWiperPot(0x7E, kWarpPinPAN1326_nSHUTD);
-	//OSA_TimeDelay(5000);
+	setWiperPot(0x00, kWarpPinPAN1326_nSHUTD);
+	OSA_TimeDelay(5000);
 	//for(uint8_t j = 0 ; j < 256 ; j++)
 	//{
 		
 		
 		// Set offset
-	//	setWiperPot(j, kWarpPinISL23415_nCS);
-	//	SEGGER_RTT_printf(0, "\nOffsetWiper%u = [", j);
-	//	OSA_TimeDelay(5000);
-	//	for(int i = 0 ; i < 10000000 ; i++)
-	//	{
-	//		SEGGER_RTT_printf(0, "%u\n", printADCValue(adcChnConfigNoise));		
-	//	}
-	//	SEGGER_RTT_printf(0, "]");
+		setWiperPot(0xFE, kWarpPinISL23415_nCS);
+		OSA_TimeDelay(5000);
+		//SEGGER_RTT_printf(0, "\nOffsetWiper%u\n", j);
+		
+		for(int i = 0 ; i < 100000 ; i++)
+		{
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			SEGGER_RTT_printf(0, "%u\n", (((*(volatile uint32_t*)(0x507BB010)))));
+			
+				
+		}
+		
 	//}
-	//OSA_TimeDelay(1000000000);
+	OSA_TimeDelay(1000000000);
 	
 	
 	/*

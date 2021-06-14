@@ -949,7 +949,7 @@ main(void)
 		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_xlsb, 1);
 		readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
 		temperature = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4);
-		for(int j = 0 ; j < 10000 ; j++)
+		for(int j = 0 ; j < 5000 ; j++)
 		{
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
@@ -1020,7 +1020,7 @@ main(void)
 		stopTSR = stopTSR - startTSR;
 		stopTPR = stopTPR - startTPR;
 		stopTPR = stopTSR + stopTPR;
-		SEGGER_RTT_printf(0, "\n%u",(int) (100000000*stopTPR));
+		SEGGER_RTT_printf(0, "\n%u",(int) (1000000000*stopTPR));
 		
 	}
 	

@@ -906,8 +906,7 @@ main(void)
 	float par_t3 = 0; 
 	
 	
-	//while(1)
-	//{
+	
 	//SEGGER_RTT_printf(0, "fortyRepeat%d = [", x);
 		value = 0;
 		for(int i = 0 ; i < 10; i++)
@@ -934,8 +933,14 @@ main(void)
 						  0b00001000,	/*	Turn off heater							*/
 						  0b00000000);
 	
-	
-		SEGGER_RTT_printf(0, "\n%d, %d,",RTC->TSR, RTC->TPR);
+		uint32_t startTSR = 0;
+		uint32_t stopTSR = 0;
+		float startTPR = 0;
+		float stopTPR = 0;
+	for(int x = 0; x <100; x++)
+	{
+		startTPR = RTC->TPR/32768.0;
+		startTSR = RTC->TSR;
 		writeSensorRegisterBME680(kWarpSensorConfigurationRegisterBME680Ctrl_Meas, 0b00100101);
 		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_msb, 1);
 		readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
@@ -1010,8 +1015,14 @@ main(void)
 			temperaturef = par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3;
 			
 		}
-		SEGGER_RTT_printf(0, "\n%d, %d,",RTC->TSR, RTC->TPR);
-	//}
+		stopTPR = RTC->TPR/32768.0;
+		stopTSR = RTC->TSR;
+		stopTSR = stopTSR - startTSR;
+		stopTPR = stopTPR - startTPR;
+		stopTPR = stopTSR + stopTPR;
+		SEGGER_RTT_printf(0, "\n%u",(int) (100000000*stopTPR));
+		
+	}
 	
 	
 	

@@ -898,15 +898,16 @@ main(void)
 	float sds3[5] = {0.2141309646, 0.2197095355, 0.265789221, 0.2728457073, 0.2073725633};
 	float covars3[5] = {0.21413096, 0.21970953, 0.26578923, 0.27284571, 0.20737257};
 	float weights3[5] = {0.27174589, 0.22555792, 0.13933054, 0.11332549, 0.25004015};
-	float temperature = 0; 
+	float temperaturef = 0; 
+	uint32_t temperature = 0;
 	
 	float par_t1 = 0;
 	float par_t2 = 0;
 	float par_t3 = 0; 
 	
 	
-	while(1)
-	{
+	//while(1)
+	//{
 	//SEGGER_RTT_printf(0, "fortyRepeat%d = [", x);
 		value = 0;
 		for(int i = 0 ; i < 10; i++)
@@ -934,7 +935,7 @@ main(void)
 						  0b00000000);
 	
 	
-	
+		SEGGER_RTT_printf(0, "\n%d, %d,",RTC->TSR, RTC->TPR);
 		writeSensorRegisterBME680(kWarpSensorConfigurationRegisterBME680Ctrl_Meas, 0b00100101);
 		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_msb, 1);
 		readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
@@ -943,7 +944,6 @@ main(void)
 		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_xlsb, 1);
 		readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
 		temperature = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4);
-		
 		for(int j = 0 ; j < 10000 ; j++)
 		{
 			
@@ -976,7 +976,7 @@ main(void)
 			uniform1 = linearCongruential(uniform1);
 			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
 			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
-			SEGGER_RTT_printf(0, "\n%d",(int) (1000000*(par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3)));
+			temperature = par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3;
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
 			while ( !((*(volatile uint32_t*)(0x5383B000))))
@@ -1007,12 +1007,13 @@ main(void)
 			uniform1 = linearCongruential(uniform1);
 			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
 			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
-			SEGGER_RTT_printf(0, "\n%d",(int) (1000000*(par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3)));
+			temperaturef = par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3;
 			
 		}
-	}
+		SEGGER_RTT_printf(0, "\n%d, %d,",RTC->TSR, RTC->TPR);
+	//}
 	
-	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	
 	
 	
 	

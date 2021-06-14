@@ -21,6 +21,12 @@
 	cp ../../src/boot/ksdk1.1.0/startup_MKL03Z4.S				work/platform/startup/MKL03Z4/gcc/startup_MKL03Z4.S
 	cp ../../src/boot/ksdk1.1.0/gpio_pins.c						work/boards/Warp
 	cp ../../src/boot/ksdk1.1.0/gpio_pins.h						work/boards/Warp
+	cp ../../src/boot/ksdk1.1.0/devBME680.c						work/boards/Warp
+	cp ../../src/boot/ksdk1.1.0/devBME680.h						work/boards/Warp
+	cp ../../src/boot/ksdk1.1.0/SEGGER_RTT.c					work/boards/Warp
+	cp ../../src/boot/ksdk1.1.0/SEGGER_RTT.h					work/boards/Warp
+	cp ../../src/boot/ksdk1.1.0/SEGGER_RTT_Conf.h				work/boards/Warp
+	
 
 	cd work/lib/ksdk_platform_lib/armgcc/KL03Z4 && ./clean.sh; ./build_release.sh
 	cd ../../../../demos/Warp/armgcc/Warp && ./clean.sh; ./build_release.sh

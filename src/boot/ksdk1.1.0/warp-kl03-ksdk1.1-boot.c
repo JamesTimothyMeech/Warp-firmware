@@ -41,6 +41,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <math.h>
 
 #include "fsl_misc_utilities.h"
 #include "fsl_device_registers.h"
@@ -58,11 +59,11 @@
 #include "fsl_adc16_driver.h"
 #include "fsl_adc_irq.c"
 #include "lptmr_trigger.c"
-
 #include "gpio_pins.h"
 #include "SEGGER_RTT.h"
 #include "warp.h"
 #include "board.h"
+#include "devBME680.h"
 
 #define ADC_0                   (0U)
 #define CHANNEL_0               (0U)
@@ -84,10 +85,12 @@
 #define UPDATE_BOUNDARIES_TIME  (20U)       /*! This value indicates the number of cycles needed to update boundaries. To know the Time it will take, multiply this value times LPTMR_COMPARE_VALUE*/
 #define kAdcChannelTemperature  (26U)       /*! ADC channel of temperature sensor */
 #define kAdcChannelPTA8		    (3U)       /*! ADC channel of PTA8 */
+#define kAdcChannelPTA9		    (2U)       /*! ADC channel of temperature sensor */
 #define kAdcChannelBandgap      (27U)       /*! ADC channel of BANDGAP */
 
 #define WARP_FRDMKL03
-
+#define BME680_CONCAT_BYTES(msb, lsb)	(((uint16_t)msb << 8) | (uint16_t)lsb)
+#define BME680_CONCAT_BYTESxlsb(msb, xlsb)	(((uint32_t)msb << 4) | (uint32_t)xlsb)
 
 #define WARP_BUILD_ENABLE_SEGGER_RTT_PRINTF
 //#define WARP_BUILD_BOOT_TO_CSVSTREAM
@@ -126,6 +129,8 @@ volatile uint32_t			gWarpI2cTimeoutMilliseconds	= 5;
 volatile uint32_t			gWarpSpiTimeoutMicroseconds	= 5000;
 volatile uint32_t			gWarpMenuPrintDelayMilliseconds	= 10;
 volatile uint32_t			gWarpSupplySettlingDelayMilliseconds = 1;
+volatile WarpI2CDeviceState			deviceBME680State;
+volatile uint8_t				deviceBME680CalibrationValues[kWarpSizesBME680CalibrationValuesCount];
 
 void					sleepUntilReset(void);
 void					lowPowerPinStates(void);
@@ -136,14 +141,16 @@ void					repeatRegisterReadForDeviceAndAddress(WarpSensorDevice warpSensorDevice
 								uint8_t pullupValue, bool autoIncrement, int chunkReadsPerAddress, bool chatty,
 								int spinDelay, int repetitionsPerAddress, uint16_t sssupplyMillivolts,
 								uint16_t adaptiveSssupplyMaxMillivolts, uint8_t referenceByte);
-int					char2int(int character);
+int						char2int(int character);
 void					enableSssupply(uint16_t voltageMillivolts);
 void					disableSssupply(void);
 void					activateAllLowPowerSensorModes(bool verbose);
 void					powerupAllSensors(void);
 uint8_t					readHexByte(void);
-int					read4digits(void);
+int						read4digits(void);
 void					printAllSensors(bool printHeadersAndCalibration, bool hexModeFlag, int menuDelayBetweenEachRun, int i2cPullupValue);
+void 					enableI2Cpins(void);
+float gaussToGauss(float sample, float targetMu, float targetSigma);
 
 
 /*
@@ -201,6 +208,18 @@ clockManagerCallbackRoutine(clock_notify_struct_t *  notify, void *  callbackDat
 	return result;
 }
 
+uint8_t calculateOffsetPotSetting(float valueADC)
+{
+	float offset = 0.0160179826285282*valueADC*valueADC -2.94290424692658*valueADC + 204.442678174054;
+	return (uint8_t) round(offset);
+}
+
+uint8_t calculateGainPotSetting(float valueADC)
+{
+	float offset = 0.0357020277485262*valueADC*valueADC + 4.04032562151349*valueADC + 20.408353362387;
+	return (uint8_t) round(offset);
+}
+
 int
 printADCValue(adc16_chn_config_t adcChnConfig)
 {
@@ -216,6 +235,45 @@ printADCValue(adc16_chn_config_t adcChnConfig)
     // ADC stop conversion
     ADC16_DRV_PauseConv(ADC_0, CHANNEL_0);
 	return value;
+}
+
+float
+sampleFromKernelDensity(float means[], float covars[], float weights[], uint32_t rand, float sample)
+{
+	
+	uint8_t index = 6;
+	float valuef = rand / 4294967295.0;
+	if(valuef <= weights[0])
+	{
+		index = 0;
+		sample = gaussToGauss(sample, means[index], covars[index]);
+		return sample;
+	}
+	if(valuef <= weights[1] + weights[0])
+	{
+		index = 1;
+		sample = gaussToGauss(sample, means[index], covars[index]);
+		return sample;
+	}
+	if(valuef <= weights[0] + weights[1] + weights[2])
+	{
+		index = 2;
+		sample = gaussToGauss(sample, means[index], covars[index]);
+		return sample;
+	}
+	if(valuef <= weights[0] + weights[1] + weights[2] + weights[3])
+	{
+		index = 3;
+		sample = gaussToGauss(sample, means[index], covars[index]);
+		return sample;
+	}
+	if(valuef <= weights[0] + weights[1] + weights[2] + weights[3] + weights[4]) 
+	{
+		index = 4;
+		sample = gaussToGauss(sample, means[index], covars[index]);
+		return sample;
+	}
+	
 }
 
 /*
@@ -471,6 +529,14 @@ void setWiperPot(uint8_t tap, uint32_t pin)
 	disableSPIpins();
 }
 
+float gaussToGauss(float sample, float targetMu, float targetSigma)
+{
+	
+	float a = targetSigma/0.092449093063203;
+	float b = targetMu - 0.499214020341909*a;
+	return (sample*a + b);
+}
+
 void
 enableSPIpins(void)
 {
@@ -520,6 +586,36 @@ disableSPIpins(void)
 
 
 	CLOCK_SYS_DisableSpiClock(0);
+}
+
+uint32_t 
+linearCongruential(uint32_t previous)
+{
+	return (1664525*previous + 1013904223) % 4294967296;
+}
+
+float 
+boxMueller(float mu, float sigma, float U1, float U2)
+{  
+  float R2 = -2*logf(U1); 
+  float R = sqrtf(R2);
+  float theta = 2*M_PI*U2;  
+  return R*cosf(theta)*sigma + mu;
+}
+
+void
+enableI2Cpins(void)
+{
+	CLOCK_SYS_EnableI2cClock(0);
+
+	/*	Warp KL03_I2C0_SCL	--> PTB3	(ALT2 == I2C)		*/
+	PORT_HAL_SetMuxMode(PORTB_BASE, 3, kPortMuxAlt2);
+
+	/*	Warp KL03_I2C0_SDA	--> PTB4	(ALT2 == I2C)		*/
+	PORT_HAL_SetMuxMode(PORTB_BASE, 4, kPortMuxAlt2);
+
+
+	I2C_DRV_MasterInit(0 /* I2C instance */, (i2c_master_state_t *)&i2cMasterState);
 }
 
 WarpStatus
@@ -624,7 +720,7 @@ main(void)
 	 *	Using SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL can lead to deadlock, since
 	 *	we might have SWD disabled at time of blockage.
 	 */
-	SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_NO_BLOCK_TRIM);
+	SEGGER_RTT_ConfigUpBuffer(0, NULL, NULL, 0, SEGGER_RTT_MODE_BLOCK_IF_FIFO_FULL);
 
 
 	SEGGER_RTT_WriteString(0, "\n\n\n\rBooting Warp, in 3... ");
@@ -767,10 +863,13 @@ main(void)
     // disable continuous convert mode.
     ADC16_DRV_StructInitUserConfigDefault(&adcUserConfig);
     adcUserConfig.resolutionMode = kAdcResolutionBitOf12or13;
-    adcUserConfig.continuousConvEnable = false;
-    adcUserConfig.clkSrcMode = kAdcClkSrcOfAsynClk;
+	// Change to true
+    adcUserConfig.continuousConvEnable = true;
+    adcUserConfig.clkSrcMode =  kAdcClkSrcOfBusClk;
+	ADC16_DRV_DisableHwAverage(ADC_0);
+	ADC16_DRV_DisableLongSample(ADC_0);
     ADC16_DRV_Init(ADC_0, &adcUserConfig);
-
+	
 
 
     adcChnConfigNoise.chnNum =kAdcChannelPTA8;
@@ -783,35 +882,296 @@ main(void)
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
 	
-	// Set offset
-	//setWiperPot(0x6B, kWarpPinISL23415_nCS);
+	float valuef = 0; 
+	uint32_t value = 0;
+	uint32_t uniform1 = 437365735; 
 
+	float means1[5] = {-26.0910794, -28.9200358, -22.3299326, -31.2545249, -24.1708072};
+	float sds1[5] = {830565.6952, 1045690.198, 881892.0575, 1036736.085, 816746.5641};
+	float covars1[5] = {0.689839374, 1.09346799, 0.777733601, 1.07482171, 0.667074950};
+	float weights1[5] = {0.26561657, 0.11522003, 0.22869728, 0.13056866, 0.25989746};
+	float means2[5] = {339.6, 338.1, 344.88, 342.94, 338.62};
+	float sds2[5] = {85.44848893, 64.66542987, 57.4458928, 89.85784935, 70.88380123};
+	float covars2[5] = {7.30144426e-03, 4.18161782e-03, 3.30003060e-03, 8.07443309e-03, 5.02451328e-03};
+	float weights2[5] = {0.23538615, 0.21981091, 0.13647497, 0.07250419, 0.33582379};
+	float means3[5] = {-138.59384823, -137.63772743, -139.91446049, -139.3033656, -138.09661793};
+	float sds3[5] = {0.2141309646, 0.2197095355, 0.265789221, 0.2728457073, 0.2073725633};
+	float covars3[5] = {0.21413096, 0.21970953, 0.26578923, 0.27284571, 0.20737257};
+	float weights3[5] = {0.27174589, 0.22555792, 0.13933054, 0.11332549, 0.25004015};
+	float temperature = 0; 
 	
+	float par_t1 = 0;
+	float par_t2 = 0;
+	float par_t3 = 0; 
+	
+	
+	while(1)
+	{
+	//SEGGER_RTT_printf(0, "fortyRepeat%d = [", x);
+		value = 0;
+		for(int i = 0 ; i < 10; i++)
+		{
+			value = value + printADCValue(adcChnConfigTemperature);
+		}
+		valuef = value/10;
+		valuef = 376.473 - 0.359*valuef;
+		// Set offset
+		setWiperPot(calculateOffsetPotSetting(valuef), kWarpPinISL23415_nCS);
+		// Set gain
+		setWiperPot(calculateGainPotSetting(valuef), kWarpPinPAN1326_nSHUTD);
+		
+		uint16_t	readSensorRegisterValueLSB;
+		uint16_t	readSensorRegisterValueMSB;
+		uint16_t	readSensorRegisterValueXLSB;
+	
+		initBME680(	0x76	/* i2cAddress */,	&deviceBME680State	);
+	
+		enableI2Cpins();
+		gWarpI2cBaudRateKbps = 1000000;
+		configureSensorBME680(0b00000001,	/*	Humidity oversampling (OSRS) to 16x				*/
+				          0b10100100,	/*	Temperature oversample 16x, pressure overdsample 16x, mode 00	*/
+						  0b00001000,	/*	Turn off heater							*/
+						  0b00000000);
+	
+	
+	
+		writeSensorRegisterBME680(kWarpSensorConfigurationRegisterBME680Ctrl_Meas, 0b00100101);
+		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_msb, 1);
+		readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
+		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_lsb, 1);
+		readSensorRegisterValueLSB = deviceBME680State.i2cBuffer[0];
+		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_xlsb, 1);
+		readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
+		temperature = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4);
+		
+		for(int j = 0 ; j < 10000 ; j++)
+		{
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t3 = sampleFromKernelDensity(means3, covars3, weights3, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t3 = %d",(int) (par_t3*1000000));
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t2 = sampleFromKernelDensity(means2, covars2, weights2, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t2 = %d",(int) (par_t2*1000000));
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
+			SEGGER_RTT_printf(0, "\n%d",(int) (1000000*(par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3)));
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t3 = sampleFromKernelDensity(means3, covars3, weights3, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t3 = %d",(int) (par_t3*1000000));
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t2 = sampleFromKernelDensity(means2, covars2, weights2, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t2 = %d",(int) (par_t2*1000000));
+			
+			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			while ( !((*(volatile uint32_t*)(0x5383B000))))
+			{}
+			uniform1 = linearCongruential(uniform1);
+			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+			valuef = value / 4294967295.0;
+			uniform1 = linearCongruential(uniform1);
+			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
+			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
+			SEGGER_RTT_printf(0, "\n%d",(int) (1000000*(par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3)));
+			
+		}
+	}
+	
+	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	
+	
+	
+	
+	// Set offset
+	//setWiperPot(0x79, kWarpPinISL23415_nCS);
+	
+
   	//uint8_t wiper = 0x00;
 	//for(int i = 0 ; i < 256 ; i++)
 	//{
-	//printADCValue(adcChnConfigTemperature);
-		//SEGGER_RTT_printf(0, "];\n\nOffsetWiper%u = [\n\n", wiper);
-		// Set gain
-		//setWiperPot(wiper, kWarpPinPAN1326_nSHUTD);
 		
-		
-		//OSA_TimeDelay(5000);
-		//wiper++;
-		for(int j = 0 ; j < 10000 ; j++)
-		{
-	 	SEGGER_RTT_printf(0, "\n%u", printADCValue(adcChnConfigTemperature));
-		//SEGGER_RTT_printf(0, "\n%u", 4095-printADCValue(adcChnConfigNoise));
-		}
+	// Set gain
+	//setWiperPot(wiper, kWarpPinPAN1326_nSHUTD);	
+	
+	//SEGGER_RTT_printf(0, "\n\nOffsetWiper%u \n", wiper);
+
+	//OSA_TimeDelay(5000);
+	//wiper++;
+	//uint16_t value = 0;
+	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	//for(int j = 0 ; j < 1000000 ; j++)
+	//{
+		// Read noise
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//value = (*(volatile uint32_t*)(0x507BB010));
+	//}
+	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	//}
 	
-	// Put equation that takes temp as input and calculates required gain and offset for each temperature here. 
-	// Set pots for required gain and offset here.
-	
-	
-
-   
+	//float means1[5] = {-138.59385849, -137.6377566, -139.91443101, -139.30349006, -138.09659595};
+	//float covars1[5] = {0.01058122, 0.01113395, 0.01628832, 0.01716978, 0.00993019};
+	//float weights1[5] = {0.27175676, 0.22551561, 0.13932415, 0.11330306, 0.25010041};
+	//uint32_t uniform1 = 9948;
+	//for(int i = 0; i < 1000; i++)
+	//{
+	//	uniform1 = linearCongruential(uniform1);
+	//	((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+	//	while ( !((*(volatile uint32_t*)(0x5383B000))))
+	//	{}
+	//	float sample = sampleFromKernelDensity(means1, covars1, weights1, uniform1, (((*(volatile uint32_t*)(0x507BB010)))));
+	//	SEGGER_RTT_printf(0, "%d\n", (int) (sample*1000000));
 	//}
+	
+	//uint16_t	readSensorRegisterValueLSB;
+	//uint16_t	readSensorRegisterValueMSB;
+	//uint16_t	readSensorRegisterValueXLSB;
+	
+	//initBME680(	0x76	/* i2cAddress */,	&deviceBME680State	);
+	
+	//enableI2Cpins();
+	//gWarpI2cBaudRateKbps = 1000000;
+	
 
+	
+	//configureSensorBME680(0b00000001,	/*	Humidity oversampling (OSRS) to 16x				*/
+	//			          0b10100100,	/*	Temperature oversample 16x, pressure overdsample 16x, mode 00	*/
+	//					  0b00001000,	/*	Turn off heater							*/
+	//					  0b00000000);
+								
+	//uint32_t uniform1 = 9948;
+	//uint32_t uniform2 = 14837564;
+	
+	//uint16_t par_t1 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[34], deviceBME680CalibrationValues[33]));
+	//uint16_t par_t2 = (uint16_t) (BME680_CONCAT_BYTES(deviceBME680CalibrationValues[2], deviceBME680CalibrationValues[1]));
+	//uint8_t  par_t3 = (uint8_t)  deviceBME680CalibrationValues[3];
+	//SEGGER_RTT_printf(0, "par_t3 = %u\n", par_t3);
+	//uint32_t temperature = 0;
+	//uint32_t pressure = 0;
+	//uint32_t humidity = 0; 
+	//uint32_t value = 0; 
+	//float temperaturef = 0;
+	
+	//writeSensorRegisterBME680(kWarpSensorConfigurationRegisterBME680Ctrl_Meas, 0b00100101);
+	//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_msb, 1);
+	//readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
+	//SEGGER_RTT_printf(0, "\nMSB = 0x%X,", readSensorRegisterValueMSB);
+	//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_lsb, 1);
+	//readSensorRegisterValueLSB = deviceBME680State.i2cBuffer[0];
+	//SEGGER_RTT_printf(0, "\nLSB = 0x%X,", readSensorRegisterValueLSB);
+	//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_xlsb, 1);
+	//readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
+	//SEGGER_RTT_printf(0, "\nXLSB = 0x%X,", readSensorRegisterValueXLSB);
+	//temperature = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4);
+	
+	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
+	//for(int j = 0 ; j < 1000 ; j++)
+	//{
+	 							
+		 
+		
+		//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680press_msb, 1);
+		//readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
+		//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680press_lsb, 1);
+		//readSensorRegisterValueLSB = deviceBME680State.i2cBuffer[0];
+		//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680press_xlsb, 1);
+		//readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
+		//pressure = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4); 
+		
+		//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680hum_msb, 1);
+		//readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
+		//readSensorRegisterBME680(kWarpSensorOutputRegisterBME680hum_lsb, 1);
+		//readSensorRegisterValueLSB = deviceBME680State.i2cBuffer[0];
+		//humidity = BME680_CONCAT_BYTES(readSensorRegisterValueMSB, readSensorRegisterValueLSB);
+		
+		
+		//SEGGER_RTT_printf(0, "\n%u, %u, %u", temperature, pressure, humidity);
+		
+		/* Get rands from Box Mueller */
+		//uniform1 = linearCongruential(uniform1);
+		//uniform2 = linearCongruential(uniform2);
+		//SEGGER_RTT_printf(0, "\npar_t1 = %u",par_t1);
+		//float par_t1_f = boxMueller((int) par_t1, 0.01*((int) par_t1), ((float)uniform1/(float)UINT32_MAX), ((float)uniform2/(float)UINT32_MAX));
+		//SEGGER_RTT_printf(0, "\npar_t1_f = %d", (int) (par_t1_f*100));
+		//uniform1 = linearCongruential(uniform1);
+		//uniform2 = linearCongruential(uniform2);
+		//SEGGER_RTT_printf(0, "\npar_t2 = %u",par_t2);
+		//float par_t2_f = boxMueller((int) par_t2, 0.01*((int) par_t2), ((float)uniform1/(float)UINT32_MAX), ((float)uniform2/(float)UINT32_MAX));
+		//SEGGER_RTT_printf(0, "\npar_t2_f = %d", (int) (par_t2_f*100));
+		//uniform1 = linearCongruential(uniform1);
+		//uniform2 = linearCongruential(uniform2);
+		//SEGGER_RTT_printf(0, "\npar_t3 = %u",par_t3);
+		//float par_t3_f = boxMueller((int) par_t3, 0.01*((int) par_t3), ((float)uniform1/(float)UINT32_MAX), ((float)uniform2/(float)UINT32_MAX));
+		//SEGGER_RTT_printf(0, "\npar_t3_f = %d", (int) (par_t3_f*100));
+		
+		
+		/* Get rands from PRVA*/
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//uniform1 = linearCongruential(uniform1);
+		//value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+		//float valuef = value / 4294967295.0;
+		//float par_t1_f = gaussToGauss(valuef, (int) par_t1, 0.01*((int) par_t1));
+		//SEGGER_RTT_printf(0, "\npar_t1_f = %d", (int) (par_t1_f*100));
+			
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//uniform1 = linearCongruential(uniform1);
+		//value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+		//valuef = value / 4294967295.0;
+		//float par_t2_f = gaussToGauss(valuef, (int) par_t2, 0.01*((int) par_t2));
+		//SEGGER_RTT_printf(0, "\npar_t2_f = %d", (int) (par_t2_f*100));
+		
+		//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+		//while ( !((*(volatile uint32_t*)(0x5383B000))))
+		//{}
+		//uniform1 = linearCongruential(uniform1);
+		//value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
+		//valuef = value / 4294967295.0;
+		//float par_t3_f = gaussToGauss(valuef, (int) par_t3, 0.01*((int) par_t3));
+		//SEGGER_RTT_printf(0, "\npar_t3_f = %d", (int) (par_t3_f*100));
+		
+		//temperaturef = calcMonteCarloT(readSensorRegisterValueMSB, readSensorRegisterValueLSB, readSensorRegisterValueLSB, par_t1_f, par_t2_f, par_t3_f); 
+  		//SEGGER_RTT_printf(0, "\n%d", (int) (temperaturef*100));
+	//}
+	//SEGGER_RTT_printf(0, "\n%d\n", RTC->TSR);
 	return 0;
 }

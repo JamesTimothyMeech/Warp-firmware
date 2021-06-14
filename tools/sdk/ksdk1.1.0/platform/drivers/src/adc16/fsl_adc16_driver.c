@@ -178,7 +178,7 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
 
     userConfigPtr->intEnable = false;
     userConfigPtr->lowPowerEnable = false;
-    userConfigPtr->clkDividerMode = kAdcClkDividerInputOf8;
+    userConfigPtr->clkDividerMode = kAdcClkDividerInputOf1;
     userConfigPtr->resolutionMode = kAdcResolutionBitOf12or13;
     userConfigPtr->clkSrcMode = kAdcClkSrcOfBusClk;
     userConfigPtr->asyncClkEnable = false;
@@ -188,7 +188,7 @@ adc16_status_t ADC16_DRV_StructInitUserConfigDefault(adc16_user_config_t *userCo
     userConfigPtr->dmaEnable = false;
 #endif /* FSL_FEATURE_ADC16_HAS_DMA */
     userConfigPtr->refVoltSrcMode = kAdcRefVoltSrcOfVref;
-    userConfigPtr->continuousConvEnable = false;
+    userConfigPtr->continuousConvEnable = true;
 
     return kStatus_ADC16_Success;
 }

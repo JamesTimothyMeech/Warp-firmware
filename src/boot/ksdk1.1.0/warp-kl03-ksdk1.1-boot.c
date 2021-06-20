@@ -237,6 +237,19 @@ printADCValue(adc16_chn_config_t adcChnConfig)
 	return value;
 }
 
+typedef struct { uint64_t state;  uint64_t inc; } pcg32_random_t;
+
+uint32_t pcg32_random_r(pcg32_random_t* rng)
+{
+    uint64_t oldstate = rng->state;
+    // Advance internal state
+    rng->state = oldstate * 6364136223846793005ULL + (rng->inc|1);
+    // Calculate output function (XSH RR), uses old state for max ILP
+    uint32_t xorshifted = ((oldstate >> 18u) ^ oldstate) >> 27u;
+    uint32_t rot = oldstate >> 59u;
+    return (xorshifted >> rot) | (xorshifted << ((-rot) & 31));
+}
+
 float
 sampleFromKernelDensity(float means[], float covars[], float weights[], uint32_t rand, float sample)
 {
@@ -882,29 +895,11 @@ main(void)
     adcChnConfigTemperature.intEnable = false;
     adcChnConfigTemperature.chnMux = kAdcChnMuxOfA;
 	
-	float valuef = 0; 
 	uint32_t value = 0;
-	uint32_t uniform1 = 437365735; 
-
-	float means1[5] = {-26.0910794, -28.9200358, -22.3299326, -31.2545249, -24.1708072};
-	float sds1[5] = {830565.6952, 1045690.198, 881892.0575, 1036736.085, 816746.5641};
-	float covars1[5] = {0.689839374, 1.09346799, 0.777733601, 1.07482171, 0.667074950};
-	float weights1[5] = {0.26561657, 0.11522003, 0.22869728, 0.13056866, 0.25989746};
-	float means2[5] = {339.6, 338.1, 344.88, 342.94, 338.62};
-	float sds2[5] = {85.44848893, 64.66542987, 57.4458928, 89.85784935, 70.88380123};
-	float covars2[5] = {7.30144426e-03, 4.18161782e-03, 3.30003060e-03, 8.07443309e-03, 5.02451328e-03};
-	float weights2[5] = {0.23538615, 0.21981091, 0.13647497, 0.07250419, 0.33582379};
-	float means3[5] = {-138.59384823, -137.63772743, -139.91446049, -139.3033656, -138.09661793};
-	float sds3[5] = {0.2141309646, 0.2197095355, 0.265789221, 0.2728457073, 0.2073725633};
-	float covars3[5] = {0.21413096, 0.21970953, 0.26578923, 0.27284571, 0.20737257};
-	float weights3[5] = {0.27174589, 0.22555792, 0.13933054, 0.11332549, 0.25004015};
-	float temperaturef = 0; 
-	uint32_t temperature = 0;
-	
-	float par_t1 = 0;
-	float par_t2 = 0;
-	float par_t3 = 0; 
-	
+	 
+	pcg32_random_t rng;
+	pcg32_random_r(&rng);
+	float valuef = 0;
 	
 	
 	//SEGGER_RTT_printf(0, "fortyRepeat%d = [", x);
@@ -919,110 +914,22 @@ main(void)
 		setWiperPot(calculateOffsetPotSetting(valuef), kWarpPinISL23415_nCS);
 		// Set gain
 		setWiperPot(calculateGainPotSetting(valuef), kWarpPinPAN1326_nSHUTD);
-		
-		uint16_t	readSensorRegisterValueLSB;
-		uint16_t	readSensorRegisterValueMSB;
-		uint16_t	readSensorRegisterValueXLSB;
 	
-		initBME680(	0x76	/* i2cAddress */,	&deviceBME680State	);
-	
-		enableI2Cpins();
-		gWarpI2cBaudRateKbps = 1000000;
-		configureSensorBME680(0b00000001,	/*	Humidity oversampling (OSRS) to 16x				*/
-				          0b10100100,	/*	Temperature oversample 16x, pressure overdsample 16x, mode 00	*/
-						  0b00001000,	/*	Turn off heater							*/
-						  0b00000000);
-	
-		uint32_t startTSR = 0;
-		uint32_t stopTSR = 0;
-		float startTPR = 0;
-		float stopTPR = 0;
-	for(int x = 0; x <100; x++)
-	{
-		startTPR = RTC->TPR/32768.0;
-		startTSR = RTC->TSR;
-		writeSensorRegisterBME680(kWarpSensorConfigurationRegisterBME680Ctrl_Meas, 0b00100101);
-		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_msb, 1);
-		readSensorRegisterValueMSB = deviceBME680State.i2cBuffer[0];
-		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_lsb, 1);
-		readSensorRegisterValueLSB = deviceBME680State.i2cBuffer[0];
-		readSensorRegisterBME680(kWarpSensorOutputRegisterBME680temp_xlsb, 1);
-		readSensorRegisterValueXLSB = deviceBME680State.i2cBuffer[0];
-		temperature = (readSensorRegisterValueMSB << 12) | (readSensorRegisterValueLSB << 4) | (readSensorRegisterValueXLSB >> 4);
-		for(int j = 0 ; j < 5000 ; j++)
+		warpSetLowPowerMode(kWarpPowerModeRUN, 0);
+		while(1)
 		{
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
 			while ( !((*(volatile uint32_t*)(0x5383B000))))
 			{}
-			uniform1 = linearCongruential(uniform1);
-			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t3 = sampleFromKernelDensity(means3, covars3, weights3, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t3 = %d",(int) (par_t3*1000000));
+			SEGGER_RTT_printf(0, "\n%u",(((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111));
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
 			while ( !((*(volatile uint32_t*)(0x5383B000))))
 			{}
-			uniform1 = linearCongruential(uniform1);
-			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t2 = sampleFromKernelDensity(means2, covars2, weights2, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t2 = %d",(int) (par_t2*1000000));
-			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			uniform1 = linearCongruential(uniform1);
-			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
-			temperature = par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3;
-			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			uniform1 = linearCongruential(uniform1);
-			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t3 = sampleFromKernelDensity(means3, covars3, weights3, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t3 = %d",(int) (par_t3*1000000));
-			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			uniform1 = linearCongruential(uniform1);
-			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t2 = sampleFromKernelDensity(means2, covars2, weights2, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t2 = %d",(int) (par_t2*1000000));
-			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			uniform1 = linearCongruential(uniform1);
-			value = ((4095-(*(volatile uint32_t*)(0x507BB010))) << 20) + (uniform1 & 0b00000000000011111111111111111111);
-			valuef = value / 4294967295.0;
-			uniform1 = linearCongruential(uniform1);
-			par_t1 = sampleFromKernelDensity(means1, covars1, weights1, uniform1, valuef);
-			//SEGGER_RTT_printf(0, "\npar_t1 = %d",(int) (par_t1*1000000));
-			temperaturef = par_t1*temperature*temperature/1E24 + temperature*par_t2/1000000.0 + par_t3;
-			
+			SEGGER_RTT_printf(0, "\n%u",((4294967295-(*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111));	
 		}
-		stopTPR = RTC->TPR/32768.0;
-		stopTSR = RTC->TSR;
-		stopTSR = stopTSR - startTSR;
-		stopTPR = stopTPR - startTPR;
-		stopTPR = stopTSR + stopTPR;
-		SEGGER_RTT_printf(0, "\n%u",(int) (1000000000*stopTPR));
-		
-	}
+
 	
 	
 	

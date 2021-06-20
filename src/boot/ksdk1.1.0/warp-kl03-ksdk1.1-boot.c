@@ -900,9 +900,13 @@ main(void)
 	pcg32_random_t rng;
 	pcg32_random_r(&rng);
 	float valuef = 0;
+	uint32_t startTSR = 0;
+	uint32_t stopTSR = 0;
+	float startTPR = 0;
+	float stopTPR = 0;
 	
 	
-	//SEGGER_RTT_printf(0, "fortyRepeat%d = [", x);
+
 		value = 0;
 		for(int i = 0 ; i < 10; i++)
 		{
@@ -916,18 +920,29 @@ main(void)
 		setWiperPot(calculateGainPotSetting(valuef), kWarpPinPAN1326_nSHUTD);
 	
 		warpSetLowPowerMode(kWarpPowerModeRUN, 0);
-		while(1)
+		for(int i = 0; i < 100; i++)
+		{
+		startTPR = RTC->TPR/32768.0;
+		startTSR = RTC->TSR;
+		for(int j = 0 ; j < 1000000; j++)
 		{
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
 			while ( !((*(volatile uint32_t*)(0x5383B000))))
 			{}
-			SEGGER_RTT_printf(0, "\n%u",(((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111));
+			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
 			while ( !((*(volatile uint32_t*)(0x5383B000))))
 			{}
-			SEGGER_RTT_printf(0, "\n%u",((4294967295-(*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111));	
+			value = 4294967295-(((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);	
+		}
+		stopTPR = RTC->TPR/32768.0;
+		stopTSR = RTC->TSR;
+		stopTSR = stopTSR - startTSR;
+		stopTPR = stopTPR - startTPR;
+		stopTPR = stopTSR + stopTPR;
+		SEGGER_RTT_printf(0, "\n%u",(int) (1000000*stopTPR));
 		}
 
 	

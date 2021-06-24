@@ -919,12 +919,12 @@ main(void)
 		// Set gain
 		setWiperPot(calculateGainPotSetting(valuef), kWarpPinPAN1326_nSHUTD);
 	
-		warpSetLowPowerMode(kWarpPowerModeRUN, 0);
+		//warpSetLowPowerMode(kWarpPowerModeRUN, 0);
 		for(int i = 0; i < 100; i++)
 		{
 		startTPR = RTC->TPR/32768.0;
 		startTSR = RTC->TSR;
-		for(int j = 0 ; j < 1000000; j++)
+		for(int j = 0 ; j < 100000; j++)
 		{
 			
 			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);

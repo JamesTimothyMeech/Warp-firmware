@@ -919,23 +919,24 @@ main(void)
 		// Set gain
 		setWiperPot(calculateGainPotSetting(valuef), kWarpPinPAN1326_nSHUTD);
 	
-		//warpSetLowPowerMode(kWarpPowerModeRUN, 0);
+		warpSetLowPowerMode(kWarpPowerModeRUN, 0);
 		for(int i = 0; i < 100; i++)
 		{
 		startTPR = RTC->TPR/32768.0;
 		startTSR = RTC->TSR;
 		for(int j = 0 ; j < 100000; j++)
 		{
+			valuef = boxMueller(0, 1, pcg32_random_r(&rng), pcg32_random_r(&rng));
+			valuef = boxMueller(0, 1, pcg32_random_r(&rng), pcg32_random_r(&rng));
+			//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			//while ( !((*(volatile uint32_t*)(0x5383B000))))
+			//{}
+			//value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);
 			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			value = (((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);
-			
-			((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
-			while ( !((*(volatile uint32_t*)(0x5383B000))))
-			{}
-			value = 4294967295-(((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);	
+			//((*(__IO hw_adc_sc1n_t *)((0x4003B000))).U = 0x43);
+			//while ( !((*(volatile uint32_t*)(0x5383B000))))
+			//{}
+			//value = 4294967295-(((*(volatile uint32_t*)(0x507BB010))) << 20) + (pcg32_random_r(&rng) & 0b00000000000011111111111111111111);	
 		}
 		stopTPR = RTC->TPR/32768.0;
 		stopTSR = RTC->TSR;
